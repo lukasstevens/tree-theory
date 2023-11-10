@@ -2,7 +2,6 @@ theory Directed_Tree
   imports "Graph_Theory.Graph_Theory" "Graph_Theory_Batteries"
 begin
 
-
 section \<open>Directed tree\<close>
 
 text \<open>
@@ -20,7 +19,7 @@ Finally we define the depth of a tree.
 locale directed_tree = wf_digraph T for T +
   fixes root :: 'a
   assumes
-    root_in_T: "root \<in> verts T" and
+    root_in_verts: "root \<in> verts T" and
     unique_awalk: "v \<in> verts T \<Longrightarrow> \<exists>!p. awalk root p v"
 
 locale fin_directed_tree = directed_tree T root + fin_digraph T for T root
@@ -34,13 +33,13 @@ lemma reachable_from_root: "v \<in> verts T \<Longrightarrow> root \<rightarrow>
   using unique_awalk reachable_awalkI by blast
 
 lemma non_empty: "verts T \<noteq> {}"
-  using root_in_T by blast
+  using root_in_verts by blast
 
 theorem nexists_cycle: "\<nexists>c. cycle c"
 proof
   assume "\<exists>c. cycle c"
   then obtain c where c: "cycle c" by blast
-  from unique_awalk[of "awhd root c", OF awhd_in_verts[OF root_in_T, of c]]
+  from unique_awalk[of "awhd root c", OF awhd_in_verts[OF root_in_verts, of c]]
   obtain p where p: "awalk root p (awhd root c)"
     using c[unfolded cycle_conv] unfolding awalk_conv by auto
   from c p awalk_appendI have "awalk root (p@c) (awhd root c)"
@@ -109,7 +108,7 @@ qed
 
 theorem connected: "connected T"
   unfolding connected_def strongly_connected_def
-  using connected' root_in_T by auto
+  using connected' root_in_verts by auto
 
 lemma unique_awalk_All: "\<exists>p. awalk u p v \<Longrightarrow> \<exists>!p. awalk u p v"
 proof(rule ccontr)
@@ -158,7 +157,7 @@ qed
 lemma sp_cost_finite: "awalk a p b \<Longrightarrow> \<mu> w a b > -\<infinity> \<and> \<mu> w a b < \<infinity>"
   using sp_eq_awalk_cost[symmetric] by simp
 
-theorem sp_append:
+theorem sp_append_if_awalk:
   "\<lbrakk> awalk a p b; awalk b q c \<rbrakk> \<Longrightarrow> \<mu> w a c = \<mu> w a b + \<mu> w b c"
 proof -
   assume p: "awalk a p b" and q: "awalk b q c"
@@ -170,10 +169,9 @@ proof -
     by (metis plus_ereal.simps(1))
 qed
 
-text \<open>Convenience lemma which reformulates @{thm sp_append} to use reachability as assumptions.\<close>
-lemma sp_append2:
+lemma sp_append_if_reachable:
   "\<lbrakk> v1 \<rightarrow>\<^sup>*\<^bsub>T\<^esub> v2; v2 \<rightarrow>\<^sup>*\<^bsub>T\<^esub> v3 \<rbrakk> \<Longrightarrow> \<mu> w v1 v3 = \<mu> w v1 v2 + \<mu> w v2 v3"
-  using reachable_awalk sp_append by auto
+  using reachable_awalk sp_append_if_awalk by auto
 
 theorem connected_minimal: "e \<in> arcs T \<Longrightarrow>  \<not> (tail T e) \<rightarrow>\<^sup>*\<^bsub>(del_arc e)\<^esub> (head T e)"
 proof
@@ -199,21 +197,90 @@ qed
 lemma All_arcs_in_path: "e \<in> arcs T \<Longrightarrow> \<exists>p u v. awalk u p v \<and> e \<in> set p"
   by (meson arc_implies_awalk list.set_intros(1))
 
-subsection \<open>An induction rule for finite trees\<close>
-text \<open>
-In this section we develop an induction rule for finite trees. Since this induction rule works by
-inductively adding trees we first need to define the notion of a leaf and prove numerous facts
-about them.
-\<close>
+subsection \<open>Definition of a leaf\<close>
 
 definition (in pre_digraph) leaf :: "'a \<Rightarrow> bool" where
   "leaf v \<equiv> v \<in> verts G \<and> out_arcs G v = {}"
 
-lemma leaf_in_vertsD[simp, dest]: "leaf v \<Longrightarrow> v \<in> verts T"
+lemma leaf_in_vertsD[simp, dest?]: "leaf v \<Longrightarrow> v \<in> verts T"
   unfolding leaf_def by simp
 
-lemma leaf_out_arcsD[simp, dest]: "leaf v \<Longrightarrow> out_arcs T v = {}"
+lemma leaf_out_arcsD[simp, dest?]: "leaf v \<Longrightarrow> out_arcs T v = {}"
   unfolding leaf_def by simp
+
+lemma leaf_out_degree_zero[simp]: "leaf v \<Longrightarrow> out_degree T v = 0"
+  unfolding leaf_def out_degree_def by auto
+
+lemma (in fin_directed_tree) ex_leaf: "\<exists>v \<in> verts T. leaf v"
+proof(rule ccontr, unfold bex_simps)
+  assume no_leaves: "\<forall>x\<in>verts T. \<not> leaf x"
+  then have "\<forall>x \<in> verts T. \<exists>e. e \<in> out_arcs T x"
+    unfolding leaf_def by (simp add: out_arcs_def)
+  then have "\<forall>x \<in> verts T. \<exists>x' e. awalk x [e] x'"
+    unfolding out_arcs_def using arc_implies_awalk by force
+  then have extend: "\<exists>p v'. awalk u (ps@[p]) v'" if "awalk u ps v" for u ps v
+    using that by force
+  have "\<exists>u p v. awalk u p v \<and> length p = n" for n
+  proof(induction n)
+    case 0
+    from root_in_verts have "awalk root [] root"
+      by (simp add: awalk_Nil_iff)
+    then show ?case by blast
+  next
+    case (Suc n)
+    then obtain u p v where "awalk u p v" and "length p = n" by blast
+    from extend[OF this(1)] obtain e v' where "awalk u (p@[e]) v'" and "length (p@[e]) = Suc n"
+      using length_append_singleton \<open>length p = n\<close> by auto
+    then show ?case by blast
+  qed
+  with awalk_not_distinct[OF finite_verts] have "\<exists>p. cycle p"
+    using awalk_cyc_decompE' closed_w_imp_cycle by (metis order_refl)
+  with nexists_cycle show False by blast
+qed
+
+lemma leaf_not_mem_awalk_verts:
+  "\<lbrakk> leaf x; awalk u p v; v \<noteq> x \<rbrakk> \<Longrightarrow> x \<notin> set (awalk_verts u p)"
+proof(induction p arbitrary: u)
+  case Nil
+  then have "u = v" unfolding awalk_conv by simp
+  with Nil show ?case by auto
+next
+  case (Cons a p)
+  then have "x \<notin> set (awalk_verts (head T a) p)" by (simp add: awalk_Cons_iff)
+  moreover
+  from Cons.prems have "tail T a \<noteq> x"
+    unfolding leaf_def out_arcs_def by auto
+  ultimately show ?case by simp
+qed
+
+lemma directed_tree_del_vert:
+  assumes "v \<noteq> root" and "leaf v"
+  shows "directed_tree (del_vert v) root"
+proof(unfold_locales)
+  from \<open>v \<noteq> root\<close> show "root \<in> verts (del_vert v)" using verts_del_vert root_in_verts by auto
+
+  have "\<exists>!p. pre_digraph.awalk (del_vert v) root p u"
+    if "u \<in> verts (del_vert v)" for u
+  proof -
+    from \<open>u \<in> verts (del_vert v)\<close> have "u \<in> verts T" "u \<noteq> v"
+      by (simp_all add: verts_del_vert)
+    then obtain p where p: "awalk root p u" "\<forall>p'. awalk root p' u \<longrightarrow> p = p'"
+    using unique_awalk[OF \<open>u \<in> verts T\<close>] by auto
+    then have "v \<notin> set (awalk_verts root p)"
+    using leaf_not_mem_awalk_verts[OF \<open>leaf v\<close> _ \<open>u \<noteq> v\<close>] by blast
+    with p have
+      "pre_digraph.awalk (del_vert v) root p u"
+      "\<forall>p'. pre_digraph.awalk (del_vert v) root p' u \<longrightarrow> p = p'"
+      using awalk_del_vert subgraph_awalk_imp_awalk subgraph_del_vert by blast+
+    then show ?thesis by blast
+  qed
+  then show "\<exists>!p. pre_digraph.awalk (del_vert v) root p va"
+    if "va \<in> verts (del_vert v)" for va
+    using that by blast
+qed (meson wf_digraph_del_vert wf_digraph_def)+
+
+
+subsection \<open>In and out degrees\<close>
 
 lemma in_degree_root_zero[simp]: "in_degree T root = 0"
 proof(rule ccontr)
@@ -225,14 +292,10 @@ proof(rule ccontr)
   with e have "awalk root (p@[e]) root"
     using awalk_appendI arc_implies_awalk by auto
   moreover have "awalk root [] root"
-    by (simp add: awalk_Nil_iff root_in_T)
+    by (simp add: awalk_Nil_iff root_in_verts)
   ultimately show "False"
     using unique_awalk by blast
 qed
-
-
-lemma leaf_out_degree_zero[simp]: "leaf v \<Longrightarrow> out_degree T v = 0"
-  unfolding leaf_def out_degree_def by auto
 
 lemma two_in_arcs_contr:
   assumes "e1 \<in> arcs T" "e2 \<in> arcs T" and "e1 \<noteq> e2" and "head T e1 = head T e2"
@@ -258,7 +321,7 @@ qed
 
 lemma in_arcs_root[simp]: "in_arcs T root = {}"
   using in_degree_root_zero
-  by (auto simp: in_degree_def root_in_T)
+  by (auto simp: in_degree_def root_in_verts)
 
 lemma not_root_if_dominated: "u \<rightarrow>\<^bsub>T\<^esub> v \<Longrightarrow> v \<noteq> root"
   using in_arcs_root unfolding in_arcs_def by auto
@@ -306,33 +369,74 @@ lemma ex_in_arc: "\<lbrakk> v \<noteq> root; v \<in> verts T \<rbrakk> \<Longrig
   using in_degree_one_if_not_root unfolding in_degree_def
   by (auto simp: card_Suc_eq)
 
-lemma ex_leaf_if_finite_verts: "finite (verts T) \<Longrightarrow> \<exists>v \<in> verts T. leaf v"
-proof(rule ccontr, unfold bex_simps)
-  assume verts_fin: "finite (verts T)" and  no_leaves: "\<forall>x\<in>verts T. \<not> leaf x"
-  then have "\<forall>x \<in> verts T. \<exists>e. e \<in> out_arcs T x"
-    unfolding leaf_def by (simp add: out_arcs_def)
-  then have "\<forall>x \<in> verts T. \<exists>x' e. awalk x [e] x'"
-    unfolding out_arcs_def using arc_implies_awalk by force
-  then have extend: "\<exists>p v'. awalk u (ps@[p]) v'" if "awalk u ps v" for u ps v
-    using that by force
-  have "\<exists>u p v. awalk u p v \<and> length p = n" for n
-  proof(induction n)
-    case 0
-    from root_in_T have "awalk root [] root"
-      by (simp add: awalk_Nil_iff)
-    then show ?case by blast
-  next
-    case (Suc n)
-    then obtain u p v where "awalk u p v" and "length p = n" by blast
-    from extend[OF this(1)] obtain e v' where "awalk u (p@[e]) v'" and "length (p@[e]) = Suc n"
-      using length_append_singleton \<open>length p = n\<close> by auto
-    then show ?case by blast
-  qed
-  with awalk_not_distinct[OF verts_fin] have "\<exists>p. cycle p"
-    using awalk_cyc_decompE' closed_w_imp_cycle by (metis order_refl)
-  with nexists_cycle show False by blast
+
+subsection \<open>Definition of a parent\<close>
+
+definition parent :: "'a \<Rightarrow> 'a" where
+  "parent v \<equiv> if v = root \<or> v \<notin> verts T then v else (THE u. u \<rightarrow>\<^bsub>T\<^esub> v)"
+
+lemma parent_cases:
+  obtains
+    (root) "v = root"
+  | (not_in_verts) "v \<notin> verts T"
+  | (not_root) "v \<noteq> root" "v \<in> verts T"
+  using root_in_verts by auto
+
+lemma exists_unique_dominates_if_neq_root:
+  assumes "v \<noteq> root" "v \<in> verts T" 
+  shows "\<exists>!u. u \<rightarrow>\<^bsub>T\<^esub> v"
+proof -
+  from ex_in_arc[OF assms] obtain e where "in_arcs T v = {e}"
+    by blast
+  then have "tail T e \<rightarrow>\<^bsub>T\<^esub> v"
+    using in_arcs_imp_in_arcs_ends by fastforce
+  moreover from \<open>in_arcs T v = {e}\<close> have "u = tail T e" if "u \<rightarrow>\<^bsub>T\<^esub> v" for u
+    using that in_arcs_imp_in_arcs_ends by fastforce
+  ultimately show ?thesis
+    by blast
 qed
 
+lemma parent_root_eq_root[simp]: "parent root = root"
+  unfolding parent_def by simp
+
+lemma parent_id_if_not_in_verts[simp]: "v \<notin> verts T \<Longrightarrow> parent v = v"
+  unfolding parent_def by simp
+
+lemma parent_dominates_if_in_verts_and_not_root[intro]:
+  "v \<in> verts T \<Longrightarrow> v \<noteq> root \<Longrightarrow> parent v \<rightarrow>\<^bsub>T\<^esub> v"
+  using exists_unique_dominates_if_neq_root[THEN theI']
+  unfolding parent_def by simp
+
+lemma parent_reachable_if_in_verts: "v \<in> verts T \<Longrightarrow> parent v \<rightarrow>\<^sup>*\<^bsub>T\<^esub> v"
+  by (cases v rule: parent_cases) auto
+
+lemma arcs_del_leafE:
+  assumes "leaf v" "v \<noteq> root"
+  obtains e where
+    "arcs (del_vert v) = arcs T - {e}" "e \<in> arcs T"
+    "tail T e = parent v" "head T e = v"
+proof -
+  from assms ex_in_arc obtain e where "in_arcs T v = {e}"
+    by force
+  moreover from assms have "out_arcs T v = {}"
+    by simp
+  ultimately have "arcs (del_vert v) = arcs T - {e}"
+    unfolding arcs_del_vert by auto
+  moreover from \<open>in_arcs T v = {e}\<close> assms(2) have "tail T e = parent v" "head T e = v"
+    using unique_arc(2) by force+
+  moreover from \<open>in_arcs T v = {e}\<close> have "e \<in> arcs T"
+    by auto
+  ultimately show ?thesis
+    using that by blast
+qed
+
+
+subsection \<open>An induction rule for finite trees\<close>
+text \<open>
+In this section we develop an induction rule for finite trees. Since this induction rule works by
+inductively adding trees we first need to define the notion of a leaf and prove numerous facts
+about them.
+\<close>
 lemma finite_arcs_if_finite_verts[simp, intro]:
   "finite (verts T) \<Longrightarrow> finite (arcs T)"
 proof -
@@ -347,8 +451,7 @@ proof -
       using wellformed by auto
     with e show "e \<in> ?A" by blast
   qed
-  moreover
-  have "finite (?a (u,v))" for u v
+  moreover have "finite (?a (u,v))" for u v
     using unique_arc_set[of u v] finite.simps by auto
   then have "finite ?A"
     by (auto simp: finite_UN[where ?B="?a", OF \<open>finite (verts T \<times> verts T)\<close>])
@@ -357,9 +460,17 @@ qed
 
 lemma root_leaf_iff: "leaf root \<longleftrightarrow> verts T = {root}"
 proof
-  from root_in_T show "verts T = {root} \<Longrightarrow> leaf root"
-    using leaf_def ex_leaf_if_finite_verts by auto
-  show "leaf root \<Longrightarrow> (verts T = {root})"
+  from root_in_verts show "leaf root" if "verts T = {root}"
+  proof -
+    from that have "finite (verts T)"
+      by simp
+    then interpret fin_directed_tree T root
+      using directed_tree_axioms
+      by unfold_locales simp_all
+    from ex_leaf that show ?thesis
+      unfolding leaf_def by force
+  qed
+  show "leaf root \<Longrightarrow> verts T = {root}"
   proof(rule ccontr)
     assume "leaf root" and "verts T \<noteq> {root}"
     with non_empty obtain u where u: "u \<in> verts T" "u \<noteq>root"
@@ -374,46 +485,6 @@ proof
   qed
 qed
 
-lemma leaf_not_mem_awalk:
-  "\<lbrakk> leaf x; awalk u p v; v \<noteq> x \<rbrakk> \<Longrightarrow> x \<notin> set (awalk_verts u p)"
-proof(induction p arbitrary: u)
-  case Nil
-  then have "u = v" unfolding awalk_conv by simp
-  with Nil show ?case by auto
-next
-  case (Cons a p)
-  then have "x \<notin> set (awalk_verts (head T a) p)" by (simp add: awalk_Cons_iff)
-  moreover
-  from Cons.prems have "tail T a \<noteq> x"
-    unfolding leaf_def out_arcs_def by auto
-  ultimately show ?case by simp
-qed
-
-lemma directed_tree_del_vert:
-  assumes "v \<noteq> root" and "leaf v"
-  shows "directed_tree (del_vert v) root"
-proof(unfold_locales)
-  from \<open>v \<noteq> root\<close> show "root \<in> verts (del_vert v)" using verts_del_vert root_in_T by auto
-
-  have "\<exists>!p. pre_digraph.awalk (del_vert v) root p u"
-    if "u \<in> verts (del_vert v)" for u
-  proof -
-    from \<open>u \<in> verts (del_vert v)\<close> have "u \<in> verts T" "u \<noteq> v"
-      by (simp_all add: verts_del_vert)
-    then obtain p where p: "awalk root p u" "\<forall>p'. awalk root p' u \<longrightarrow> p = p'"
-    using unique_awalk[OF \<open>u \<in> verts T\<close>] by auto
-    then have "v \<notin> set (awalk_verts root p)"
-    using leaf_not_mem_awalk[OF \<open>leaf v\<close> _ \<open>u \<noteq> v\<close>] by blast
-    with p have
-      "pre_digraph.awalk (del_vert v) root p u"
-      "\<forall>p'. pre_digraph.awalk (del_vert v) root p' u \<longrightarrow> p = p'"
-      using awalk_del_vert subgraph_awalk_imp_awalk subgraph_del_vert by blast+
-    then show ?thesis by blast
-  qed
-  then show "\<exists>!p. pre_digraph.awalk (del_vert v) root p va"
-    if "va \<in> verts (del_vert v)" for va
-    using that by blast
-qed (meson wf_digraph_del_vert wf_digraph_def)+
 
 lemma arcs_del_leaf:
   assumes e: "e \<in> arcs T" "head T e = v" and v: "leaf v"
@@ -429,12 +500,11 @@ proof -
   ultimately show ?thesis unfolding out_arcs_def in_arcs_def
     using arcs_del_vert2 by auto
 qed
+
 end
 
 context fin_directed_tree
 begin
-
-lemmas ex_leaf = ex_leaf_if_finite_verts[OF finite_verts]
 
 lemma fin_directed_tree_del_vert:
   assumes "v \<noteq> root" and "leaf v"
@@ -445,8 +515,56 @@ proof -
     unfolding fin_directed_tree_def by blast
 qed
 
+lemma del_leaf_induct[case_names single_vert del_leaf]:
+  assumes single_vert: "\<And>t h root. P \<lparr> verts = {root}, arcs = {}, tail = t, head = h \<rparr>"
+  assumes del_leaf: "\<And>T' root v.
+    \<lbrakk> pre_digraph.leaf T' v; v \<noteq> root
+    ; fin_directed_tree T' root
+    ; P (pre_digraph.del_vert T' v)
+    \<rbrakk> \<Longrightarrow> P T'"
+  shows "P T"
+  using finite_verts fin_directed_tree_axioms
+proof(induction "card (verts T)" arbitrary: T root)
+  case 0
+  then have "verts T = {}"
+    using card_eq_0_iff by simp
+  with directed_tree.non_empty \<open>fin_directed_tree T root\<close> show ?case
+    unfolding fin_directed_tree_def by fast
+next
+  case (Suc n)
+  then interpret T: fin_directed_tree T root
+    by blast
+  show ?case
+  proof(cases n)
+    case 0
+    with Suc have "card (verts T) = 1"
+      by simp
+    with T.root_in_verts have "verts T = {root}"
+      by (metis card_1_singletonE singletonD)
+    then have "arcs T = {}"
+      using T.loopfree.no_loops T.tail_in_verts by fastforce
+    with \<open>verts T = {root}\<close> single_vert show ?thesis
+      by (cases T) auto
+  next
+    case Suc': (Suc n')
+    from T.ex_leaf obtain v where "T.leaf v"
+      by blast
+    with Suc' have "v \<noteq> root"
+      using T.root_leaf_iff Suc.hyps(2) by fastforce
+
+    note fin_d_tree_del_vert = T.fin_directed_tree_del_vert[OF \<open>v \<noteq> root\<close> \<open>T.leaf v\<close>]
+    
+    from Suc have "n = card (verts (T.del_vert v))" "finite (verts (T.del_vert v))"
+      unfolding T.verts_del_vert using \<open>T.leaf v\<close> by force+
+    note IH = Suc.hyps(1)[OF this fin_d_tree_del_vert]
+
+    from del_leaf[OF \<open>T.leaf v\<close> \<open>v \<noteq> root\<close> T.fin_directed_tree_axioms IH]
+    show ?thesis .
+  qed
+qed
+
 lemma add_leaf_induct[case_names single_vert add_leaf]:
-  assumes base: "\<And>t h root. P \<lparr> verts = {root}, arcs = {}, tail = t, head = h \<rparr>"
+  assumes single_vert: "\<And>t h root. P \<lparr> verts = {root}, arcs = {}, tail = t, head = h \<rparr>"
       and add_leaf: "\<And>T' V A t h u root a v.
         \<lbrakk> T' = \<lparr> verts = V, arcs = A, tail = t, head = h \<rparr>
         ; fin_directed_tree T' root
@@ -469,13 +587,13 @@ next
   proof(cases "n = 0")
     case True
     with \<open>Suc n = card (verts T)\<close> have "card (verts T) = 1" by simp
-    with tree_T.root_in_T have "verts T = {root}"
+    with tree_T.root_in_verts have "verts T = {root}"
       using card_1_singletonE by force
     then have "arcs T = {}"
       using tree_T.loopfree.no_loops tree_T.tail_in_verts by fastforce
     with \<open>verts T = {root}\<close> have "T = \<lparr> verts = {root}, arcs = {}, tail = tail T, head = head T \<rparr>"
       by simp
-    with base[of root "tail T" "head T"] show ?thesis by simp
+    with single_vert[of root "tail T" "head T"] show ?thesis by simp
   next
     case False
 
@@ -533,12 +651,13 @@ qed
 text \<open>A simple consequence of the induction rule is that a tree with n vertices has n-1 arcs.\<close>
 lemma Suc_card_arcs_eq_card_verts:
   "Suc (card (arcs T)) = card (verts T)"
-proof(induction rule: add_leaf_induct)
-  case (add_leaf T' _ _ _ _ _ root)
-  then interpret tree_T': fin_directed_tree T' root
+proof(induction rule: del_leaf_induct)
+  case (del_leaf T' root v)
+  then interpret T': fin_directed_tree T' root
     by blast
-  from add_leaf tree_T'.finite_verts tree_T'.finite_arcs show ?case
-    by auto
+  from del_leaf T'.finite_verts T'.finite_arcs show ?case
+    unfolding T'.verts_del_vert
+    by (metis T'.arcs_del_leafE T'.leaf_in_vertsD card.remove)
 qed simp
 
 end

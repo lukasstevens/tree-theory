@@ -2,7 +2,6 @@ theory Tree
   imports Directed_Tree
 begin
 
-
 experiment
 begin
 
@@ -13,7 +12,7 @@ interpretation ex_dag: wf_digraph example_dag
   unfolding example_dag_def with_proj_def
   by (unfold_locales) auto
 
-lemma
+lemma nexists_cycle_if_arcs_mono:
   fixes G :: "('a::linorder, 'b) pre_digraph"
   assumes "wf_digraph G"
   assumes "\<forall>e \<in> arcs G. tail G e < head G e"
@@ -25,53 +24,49 @@ proof
   then obtain u p e where "awalk u (p @ [e]) u"
     unfolding pre_digraph.cycle_def by (metis rev_exhaust)
 
-  have "sorted (map (tail G) p)" if "awalk u p v" for p v
+  have sorted: "sorted_wrt (<) (map (tail G) p)" if "awalk u p v" for p v
     using that
   proof(induction p arbitrary: v rule: rev_induct)
     case (snoc a p)
     then have "awalk u p (tail G a)"
       by (metis awalk_Cons_iff awalk_append_iff)
     note snoc.IH[OF this]
-    
-    then show ?case sorry
-  qed simp
-
-  then have "u \<le> tail G e"
-  proof -
-    have "u \<le> tail G e" if "awalk u p v" "e \<in> set p" for p v
-      using that
-    proof(induction p arbitrary: v rule: rev_induct)
-      case Nil
-      then show ?case by (simp add: awalk_def)
-    next
-      case (snoc a p)
-      then have "awalk u p (tail G a)"
-        by (metis awalk_Cons_iff awalk_append_iff)
-      note snoc.IH[OF this] 
-      moreover
-      from assms(2) snoc.prems(1) have "\<forall>e \<in> set p. tail G e < head G a"
-        apply(induction p arbitrary: v rule: rev_induct)
-         apply(auto simp: awalk_Cons_iff)
-                
-        using awalk_Cons_iff snoc.prems(1) by auto
+    moreover from snoc.prems have "\<forall>b \<in> set p. tail G b < tail G a"
+    proof(induction p arbitrary: a v rule: rev_induct)
+      case (snoc x xs)
+      then have "head G x = tail G a"
+        by (simp add: awalk_Cons_iff)
+      with assms(2) snoc.prems have "tail G x < tail G a"
+        using awalk_Cons_iff by auto
+      moreover from snoc have "\<forall>b\<in>set xs. tail G b < tail G x"
+        using awalk_append_iff by blast
       ultimately show ?case
-        using snoc.prems
-        apply(auto) sledgehammer
-        sorry
-    qed
+        by auto
+    qed simp
+    ultimately show ?case
+      by (simp add: sorted_wrt_append)
+  qed simp
+  
+  from \<open>awalk u (p @ [e]) u\<close> have "tail G (hd (p @ [e])) = u"
+    by (auto simp: hd_append cas_simp)
+  with sorted[OF \<open>awalk u (p @ [e]) u\<close>] have "u \<le> tail G e"
+    by (cases p) auto
+  with assms(2) \<open>awalk u (p @ [e]) u\<close> have "u < head G e"
+    using awalk_append_iff by force
+  with \<open>awalk u (p @ [e]) u\<close> show False
+    by auto
+qed
 
-thm pre_digraph.cycle_def
-lemma awalks_example_dag:
-  assumes "ex_dag.awalk u p v"
+lemma nexists_cycle_ex_dag: "\<nexists>c. ex_dag.cycle c"
+  by (intro nexists_cycle_if_arcs_mono ex_dag.wf_digraph_axioms)
+     (auto simp: example_dag_def)
 
-  apply(auto)
-  find_theorems "ex_dag.awalk"
-
-lemma forest_example_dag: "forest example_dag"
-  unfolding forest_def example_dag_def with_proj_def
-  apply(auto simp: pre_digraph.cycle_def)
+lemma forest_ex_dag: "forest example_dag"
+  using nexists_cycle_ex_dag unfolding forest_def .
   
 end
+
+text \<open>Should we disallow multi-edges, i.e. should we add @{locale nomulti_digraph}?\<close>
 
 locale forest = loopfree_digraph F + sym_digraph F for F +
   assumes nexists_cycle: "\<nexists>c. cycle c \<and> length c \<ge> 3"

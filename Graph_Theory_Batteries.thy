@@ -145,12 +145,13 @@ proof(rule ccontr)
       "\<exists>p. awalk b p c \<and> awalk_cost w p = \<mu> w b c"
       using min_cost_awalk2 by (fastforce intro: awalkI_apath)+
     then obtain p1 p2 where
-        "awalk a p1 b" "awalk_cost w p1 = \<mu> w a b" and
-        "awalk b p2 c" "awalk_cost w p2 = \<mu> w b c" by blast
+      "awalk a p1 b" "awalk_cost w p1 = \<mu> w a b" and
+      "awalk b p2 c" "awalk_cost w p2 = \<mu> w b c" by blast
     then have "awalk a (p1@p2) c \<and> awalk_cost w (p1@p2) = \<mu> w a b + \<mu> w b c"
       by (auto intro: awalk_appendI) (metis plus_ereal.simps(1))
-    then show ?thesis using min_cost_le_walk_cost
-      by (metis \<open>\<not> \<mu> w a c \<le> \<mu> w a b + \<mu> w b c\<close>)
+    then show ?thesis
+      using min_cost_le_walk_cost \<open>\<not> \<mu> w a c \<le> \<mu> w a b + \<mu> w b c\<close>
+      by metis
   qed
 qed
 

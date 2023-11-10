@@ -31,7 +31,7 @@ proof -
   have "root \<rightarrow>\<^sup>*\<^bsub>T\<^esub> u"
     using \<open>u \<rightarrow>\<^sup>*\<^bsub>T\<^esub> v\<close> reachable_from_root reachable_in_verts(1) by auto
   ultimately show ?thesis
-    using \<open>u \<rightarrow>\<^sup>*\<^bsub>T\<^esub> v\<close> sp_append2 ereal_le_add_self2 by auto
+    using \<open>u \<rightarrow>\<^sup>*\<^bsub>T\<^esub> v\<close> sp_append_if_reachable ereal_le_add_self2 by auto
 qed
 
 lemma depth_lowerB: "v \<in> verts T \<Longrightarrow> depth w \<ge> \<mu> w root v"
@@ -61,7 +61,7 @@ proof -
   have "\<forall>v \<in> verts T. \<mu> w root v < \<infinity>"
     using \<mu>_reach_conv reachable_from_root by blast
   then have "{\<mu> w root v|v. v \<in> verts T} \<subseteq> fin_sp_costs w"
-    unfolding fin_sp_costs_def using root_in_T by blast
+    unfolding fin_sp_costs_def using root_in_verts by blast
   then have "depth w \<le> fin_diameter w"
     unfolding depth_def fin_diameter_def by (simp add: Sup_subset_mono)
   moreover
@@ -69,9 +69,9 @@ proof -
   proof
     assume "depth w < fin_diameter w"
     obtain u v where "\<mu> w u v = fin_diameter w" "u \<in> verts T" "v \<in> verts T"
-      using fin_digraph.ex_sp_eq_fin_dia[OF \<open>fin_digraph T\<close> non_empty] by blast
+      using fin_digraph.ex_sp_eq_fin_diameter[OF \<open>fin_digraph T\<close> non_empty] by blast
     then have "u \<rightarrow>\<^sup>*\<^bsub>T\<^esub> v"
-      by (metis \<mu>_reach_conv fin_digraph.fin_diameter_finite[OF \<open>fin_digraph T\<close>])
+      by (metis \<mu>_reach_conv fin_digraph.fin_diameter_lt_inf[OF \<open>fin_digraph T\<close>])
     then have "\<mu> w u v \<le> \<mu> w root v" using sp_from_root_le by blast
     also have "\<dots> \<le> depth w" using depth_lowerB[OF \<open>v \<in> verts T\<close>] by simp
     finally have "fin_diameter w \<le> depth w"
@@ -164,7 +164,7 @@ proof(rule ccontr)
   have "T.\<mu> w source v < \<infinity>"
     using T.reachable_from_root T.\<mu>_reach_conv v(1) by blast
   ultimately show "False"
-    using source_in_G G.fin_dia_lowerB[OF source_in_G \<open>v \<in> verts G\<close>] sp v
+    using source_in_G G.fin_diameter_lowerB[OF source_in_G \<open>v \<in> verts G\<close>] sp v
     by (metis linorder_not_less)
 qed
 
