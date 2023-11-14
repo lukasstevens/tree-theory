@@ -220,7 +220,7 @@ qed
 corollary all_reachable_eq_nnvs:
   "\<lbrakk> U = {x. u \<rightarrow>\<^sup>* x}; card U = Suc n \<rbrakk>
   \<Longrightarrow> n_nearest_verts w u n U"
-  using reachable_subs_nnvs reachable_verts_finite reachable_in_verts(1)
+  using reachable_subs_nnvs finite_reachable reachable_in_verts(1)
   by (metis card_Suc_eq card_subset_eq insertI1 le_Suc_eq mem_Collect_eq)
 
 lemma all_reachable_eq_nnvs_Suc:
@@ -231,7 +231,7 @@ proof -
   show ?thesis using assms
   proof(induction n)
     case 0
-    then show ?case using * reachable_verts_finite by auto
+    then show ?case using * finite_reachable by auto
   next
     case (Suc n)
     then show ?case using  * n_nnvs_vis unvis_empty by auto
@@ -264,7 +264,7 @@ corollary nnvs_imp_all_reachable:
   "\<lbrakk> n_nearest_verts w u n U; Suc n = card {x. u \<rightarrow>\<^sup>* x} \<rbrakk>
   \<Longrightarrow> U = {x. u \<rightarrow>\<^sup>* x}"
   using nnvs_imp_reachable
-  by (simp add: card_subset_eq reachable_verts_finite)
+  by (simp add: card_subset_eq finite_reachable)
 
 lemma nnvs_imp_all_reachable_Suc:
   assumes "n_nearest_verts w u n U"  "Suc n \<ge> card {x. u \<rightarrow>\<^sup>* x}"
@@ -275,7 +275,7 @@ proof(induction rule: n_nearest_verts.induct)
   have u_mem: "u \<in> {a. u \<rightarrow>\<^sup>* a}" by (simp add: zero_nnvs.hyps)
   moreover
   from u_mem have "card {a. u \<rightarrow>\<^sup>* a} = 1"
-    using le_Suc_eq reachable_verts_finite zero_nnvs.prems by force
+    using le_Suc_eq finite_reachable zero_nnvs.prems by force
   ultimately show ?case by (metis card_1_singletonE singletonD)
 next
   case (n_nnvs_unvis w u n U)

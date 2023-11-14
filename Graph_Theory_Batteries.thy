@@ -9,36 +9,11 @@ lemma (in wf_digraph) strongly_connected_connectedD[dest?, simp]:
   using assms unfolding strongly_connected_def
   by (auto intro!: connectedI reachable_mk_symmetricI)
 
-section \<open>Lemmas about \<^term>\<open>\<mu>\<close>\<close>
+lemma (in wf_digraph) reachable_eq_verts_if_strongly_connected:
+  "\<lbrakk> r \<in> verts G; strongly_connected G \<rbrakk> \<Longrightarrow> {x. r \<rightarrow>\<^sup>* x} = verts G"
+  unfolding strongly_connected_def using reachable_in_verts(2) by blast
 
-lemma (in wf_digraph) sp_non_neg_if_w_non_neg:
-  assumes w_non_neg: "\<forall>e \<in> arcs G. w e \<ge> 0"
-  shows "\<mu> w u v \<ge> 0"
-proof(cases "u \<rightarrow>\<^sup>*\<^bsub>G\<^esub> v")
-  case True
-  have *: "awalk u p v \<Longrightarrow> awalk_cost w p \<ge> 0" for p
-    by (simp add: pos_cost_pos_awalk_cost w_non_neg)
-  then show ?thesis unfolding \<mu>_def
-    by (metis (mono_tags, lifting) INF_less_iff ereal_less_eq(5) mem_Collect_eq not_less)
-next
-  case False
-  then show ?thesis by (simp add: shortest_path_inf)
-qed
-
-
-lemma (in wf_digraph) sp_to_self_if_w_non_neg:
-  assumes w_non_neg: "\<forall>e \<in> arcs G. w e \<ge> 0" and "u \<in> verts G"
-  shows "\<mu> w u u = 0"
-proof -
-  have "awalk u [] u" and "awalk_cost w [] = 0"
-    by (auto simp: assms(2) awalk_Nil_iff)
-  moreover
-  have "\<mu> w u u \<ge> 0" by (simp add: sp_non_neg_if_w_non_neg w_non_neg)
-  ultimately show "\<mu> w u u = 0"
-    by (metis antisym ereal_eq_0(2) min_cost_le_walk_cost)
-qed
-
-lemma (in fin_digraph) reachable_verts_finite: "finite {x. u \<rightarrow>\<^sup>* x}"
+lemma (in fin_digraph) finite_reachable: "finite {x. u \<rightarrow>\<^sup>* x}"
   using finite_verts
   by (metis finite_subset mem_Collect_eq reachable_in_vertsE subsetI)
 
@@ -93,9 +68,34 @@ lemma (in pre_digraph) arcs_del_vert2:
   "arcs (del_vert v) = arcs G - in_arcs G v - out_arcs G v"
   using arcs_del_vert by force
 
-lemma (in wf_digraph) strongly_con_imp_reachable_eq_verts:
-  "\<lbrakk> r \<in> verts G; strongly_connected G \<rbrakk> \<Longrightarrow> {x. r \<rightarrow>\<^sup>* x} = verts G"
-  unfolding strongly_connected_def using reachable_in_verts(2) by blast
+section \<open>Lemmas about \<^term>\<open>\<mu>\<close>\<close>
+
+lemma (in wf_digraph) sp_non_neg_if_w_non_neg:
+  assumes w_non_neg: "\<forall>e \<in> arcs G. w e \<ge> 0"
+  shows "\<mu> w u v \<ge> 0"
+proof(cases "u \<rightarrow>\<^sup>*\<^bsub>G\<^esub> v")
+  case True
+  have *: "awalk u p v \<Longrightarrow> awalk_cost w p \<ge> 0" for p
+    by (simp add: pos_cost_pos_awalk_cost w_non_neg)
+  then show ?thesis unfolding \<mu>_def
+    by (metis (mono_tags, lifting) INF_less_iff ereal_less_eq(5) mem_Collect_eq not_less)
+next
+  case False
+  then show ?thesis by (simp add: shortest_path_inf)
+qed
+
+
+lemma (in wf_digraph) sp_to_self_if_w_non_neg:
+  assumes w_non_neg: "\<forall>e \<in> arcs G. w e \<ge> 0" and "u \<in> verts G"
+  shows "\<mu> w u u = 0"
+proof -
+  have "awalk u [] u" and "awalk_cost w [] = 0"
+    by (auto simp: assms(2) awalk_Nil_iff)
+  moreover
+  have "\<mu> w u u \<ge> 0" by (simp add: sp_non_neg_if_w_non_neg w_non_neg)
+  ultimately show "\<mu> w u u = 0"
+    by (metis antisym ereal_eq_0(2) min_cost_le_walk_cost)
+qed
 
 lemma (in wf_digraph) strongly_con_imp_sp_finite:
   "\<lbrakk> u \<in> verts G; v \<in> verts G; strongly_connected G \<rbrakk> \<Longrightarrow> \<mu> w u v < \<infinity>"

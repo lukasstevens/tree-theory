@@ -13,7 +13,6 @@ non-existence of @{const pre_digraph.cycle}, absence of loops with @{locale loop
 multi-arcs with @{locale nomulti_digraph}.
 We also prove the admissibility of an induction rule for finite trees which constructs any tree
 inductively by starting with a single node (the root) and consecutively adding leaves.
-Finally we define the depth of a tree.
 \<close>
 
 locale directed_tree = wf_digraph T for T +
@@ -407,8 +406,17 @@ lemma parent_dominates_if_in_verts_and_not_root[intro]:
   using exists_unique_dominates_if_neq_root[THEN theI']
   unfolding parent_def by simp
 
+lemma parent_neq_if_in_verts_and_not_root:
+  "v \<in> verts T \<Longrightarrow> v \<noteq> root \<Longrightarrow> parent v \<noteq> v"
+  using parent_dominates_if_in_verts_and_not_root
+  by (metis loopfree.adj_not_same)
+
 lemma parent_reachable_if_in_verts: "v \<in> verts T \<Longrightarrow> parent v \<rightarrow>\<^sup>*\<^bsub>T\<^esub> v"
   by (cases v rule: parent_cases) auto
+
+lemma parent_in_verts:
+  "v \<in> verts T \<Longrightarrow> parent v \<in> verts T"
+  using parent_reachable_if_in_verts reachable_in_verts(1) by blast
 
 lemma arcs_del_leafE:
   assumes "leaf v" "v \<noteq> root"
@@ -485,20 +493,14 @@ proof
   qed
 qed
 
-
 lemma arcs_del_leaf:
-  assumes e: "e \<in> arcs T" "head T e = v" and v: "leaf v"
+  assumes "e \<in> arcs T" "head T e = v" and "leaf v"
   shows "arcs (del_vert v) = arcs T - {e}"
 proof -
-  from v have "out_arcs T v = {}"
-    unfolding pre_digraph.leaf_def by simp
-  moreover
-  from e v have "v \<noteq> root"
-    using loopfree.no_loops root_leaf_iff by fastforce
-  from ex_in_arc[OF this] v have "in_arcs T v = {e}"
-    unfolding pre_digraph.leaf_def using e e two_in_arcs_contr by fastforce
-  ultimately show ?thesis unfolding out_arcs_def in_arcs_def
-    using arcs_del_vert2 by auto
+  from assms have "v \<noteq> root"
+    using in_arcs_root by fastforce
+  from arcs_del_leafE[OF \<open>leaf v\<close> this] assms show ?thesis
+    by (metis two_in_arcs_contr)
 qed
 
 end
@@ -572,81 +574,33 @@ lemma add_leaf_induct[case_names single_vert add_leaf]:
         ; u \<in> V; v \<notin> V; a \<notin> A
         \<rbrakk> \<Longrightarrow> P \<lparr> verts = V \<union> {v}, arcs = A \<union> {a}, tail = t(a := u), head = h(a := v) \<rparr>"
     shows "P T"
-  using finite_verts assms(1) directed_tree_axioms
-proof(induction "card (verts T)" arbitrary: T root)
-  case 0
-  then have "verts T = {}" using card_eq_0_iff by simp
-  with directed_tree.non_empty[OF \<open>directed_tree T root\<close>] show ?case by blast
-next
-  case (Suc n)
-  then interpret tree_T: directed_tree T root
+proof(induction rule: del_leaf_induct)
+  case (del_leaf T' root v)
+  then interpret T': fin_directed_tree T' root
     by blast
-  from Suc interpret tree_T: fin_directed_tree T root
-    by unfold_locales blast+
+  from del_leaf T'.arcs_del_leafE obtain e where e:
+    "arcs (T'.del_vert v) = arcs T' - {e}" "e \<in> arcs T'"
+    "tail T' e = T'.parent v" "head T' e = v"
+    by blast
+
+  let ?T = "T'.del_vert v"
+  have T_eq:
+    "?T = \<lparr> verts = verts T' - {v}, arcs = arcs T' - {e}, tail = tail T', head = head T' \<rparr>"
+    using e by (simp add: T'.del_vert_def)
+
+  have T'_eq:
+    "T' = \<lparr> verts = (verts T' - {v}) \<union> {v}, arcs = (arcs T' - {e}) \<union> {e}
+          , tail = (tail T')(e := T'.parent v), head = (head T')(e := v) \<rparr>"
+    using e fun_upd_triv \<open>T'.leaf v\<close>[THEN T'.leaf_in_vertsD]
+    by (cases T') force
+
+  note fin_dir_tree_T = T'.fin_directed_tree_del_vert[OF del_leaf(2,1)]
+  note add_leaf[OF T_eq fin_dir_tree_T del_leaf.IH]
+  note add_leaf = this[of "T'.parent v" v e, folded T'_eq]
   show ?case
-  proof(cases "n = 0")
-    case True
-    with \<open>Suc n = card (verts T)\<close> have "card (verts T) = 1" by simp
-    with tree_T.root_in_verts have "verts T = {root}"
-      using card_1_singletonE by force
-    then have "arcs T = {}"
-      using tree_T.loopfree.no_loops tree_T.tail_in_verts by fastforce
-    with \<open>verts T = {root}\<close> have "T = \<lparr> verts = {root}, arcs = {}, tail = tail T, head = head T \<rparr>"
-      by simp
-    with single_vert[of root "tail T" "head T"] show ?thesis by simp
-  next
-    case False
+    by (rule add_leaf) (use e(2,4) e(3)[symmetric] T'.loopfree.no_loops in auto)
+qed (use single_vert in simp)
 
-    from tree_T.ex_leaf obtain v where v: "tree_T.leaf v"
-      by blast
-    with False have "v \<noteq> root"
-      using tree_T.root_leaf_iff Suc.hyps(2) by fastforce
-    note v = \<open>tree_T.leaf v\<close> \<open>v \<noteq> root\<close>
-
-    let ?T' = "tree_T.del_vert v"
-    have T': "?T' = \<lparr> verts = verts ?T', arcs = arcs ?T', tail = tail ?T', head = head ?T' \<rparr>"
-      by simp
-    
-    from tree_T.fin_directed_tree_del_vert[OF v(2,1)]
-    interpret tree_T': fin_directed_tree "tree_T.del_vert v" root .
-
-    have P_T': "P ?T'"
-      by (rule Suc.hyps(1)[OF _ _ _ tree_T'.directed_tree_axioms])
-         (use Suc v tree_T.finite_verts in \<open>auto simp: tree_T.verts_del_vert\<close>)
-
-    from tree_T.ex_in_arc[OF v(2)]
-    obtain e where e: "in_arcs T v = {e}" "tail T e \<in> verts T"
-      using v(1)[unfolded tree_T.leaf_def] by force
-    then have "tail T e \<in> verts ?T'"
-      unfolding in_arcs_def using tree_T.arcs_del_vert[of v]
-      using tree_T.loopfree.no_loops tree_T.verts_del_vert[of v]
-      using v(1)[unfolded tree_T.leaf_def] by fastforce
-    moreover note add_leaf[OF T' tree_T'.fin_directed_tree_axioms P_T']
-    ultimately have
-      "P \<lparr> verts = verts ?T' \<union> {v}, arcs = arcs ?T' \<union> {e},
-           tail = (tail ?T')(e := (tail T e)), head = (head ?T')(e := v) \<rparr>"
-      using e(1) by (fastforce simp: tree_T.del_vert_simps(2) tree_T.verts_del_vert)
-
-    moreover have "T = \<lparr> verts = verts ?T' \<union> {v}, arcs = arcs ?T' \<union> {e},
-      tail = (tail ?T')(e := (tail T e)), head = (head ?T')(e := v) \<rparr>"
-    proof -
-      have "verts T = verts ?T' \<union> {v}"
-        using v(1)[unfolded tree_T.leaf_def] tree_T.verts_del_vert[of v] by fastforce
-      moreover
-      have "arcs ?T' = arcs T - out_arcs T v - in_arcs T v"
-        using tree_T.arcs_del_vert2 by fastforce
-      with e v(1)[unfolded pre_digraph.leaf_def] have "arcs T = arcs ?T' \<union> {e}" by auto
-      moreover
-      have "tail T = (tail ?T')(e := (tail T e))"
-        by (simp add: tree_T.tail_del_vert)
-      moreover
-      from e[unfolded in_arcs_def] have "head T = (head ?T')(e := v)"
-        using tree_T.head_del_vert by fastforce
-      ultimately show ?thesis by simp
-    qed
-    ultimately show ?thesis by simp
-  qed
-qed
 
 text \<open>A simple consequence of the induction rule is that a tree with n vertices has n-1 arcs.\<close>
 lemma Suc_card_arcs_eq_card_verts:

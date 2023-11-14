@@ -141,7 +141,7 @@ lemma strongly_con_imp_card_verts_eq:
   shows "card (verts T) = Suc n"
 proof -
   have verts_G: "verts G = {x. source \<rightarrow>\<^sup>*\<^bsub>G\<^esub> x}"
-    using G.strongly_con_imp_reachable_eq_verts
+    using G.reachable_eq_verts_if_strongly_connected
       [OF source_in_G \<open>strongly_connected G\<close>, symmetric] .
   with card_verts have "Suc n \<le> card {x. source \<rightarrow>\<^sup>*\<^bsub>G\<^esub> x}" by simp
 
