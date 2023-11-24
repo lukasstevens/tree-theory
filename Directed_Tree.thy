@@ -1,5 +1,7 @@
 theory Directed_Tree
-  imports "Graph_Theory.Graph_Theory" "Graph_Theory_Batteries"
+  imports
+    "Graph_Theory.Graph_Theory"
+    "Graph_Theory_Batteries" "LCA"
 begin
 
 section \<open>Directed tree\<close>
@@ -196,19 +198,9 @@ qed
 lemma All_arcs_in_path: "e \<in> arcs T \<Longrightarrow> \<exists>p u v. awalk u p v \<and> e \<in> set p"
   by (meson arc_implies_awalk list.set_intros(1))
 
-subsection \<open>Definition of a leaf\<close>
+end
 
-definition (in pre_digraph) leaf :: "'a \<Rightarrow> bool" where
-  "leaf v \<equiv> v \<in> verts G \<and> out_arcs G v = {}"
-
-lemma leaf_in_vertsD[simp, dest?]: "leaf v \<Longrightarrow> v \<in> verts T"
-  unfolding leaf_def by simp
-
-lemma leaf_out_arcsD[simp, dest?]: "leaf v \<Longrightarrow> out_arcs T v = {}"
-  unfolding leaf_def by simp
-
-lemma leaf_out_degree_zero[simp]: "leaf v \<Longrightarrow> out_degree T v = 0"
-  unfolding leaf_def out_degree_def by auto
+subsection \<open>Theorems about \<^term>\<open>pre_digraph.leaf\<close>\<close>
 
 lemma (in fin_directed_tree) ex_leaf: "\<exists>v \<in> verts T. leaf v"
 proof(rule ccontr, unfold bex_simps)
@@ -232,10 +224,13 @@ proof(rule ccontr, unfold bex_simps)
       using length_append_singleton \<open>length p = n\<close> by auto
     then show ?case by blast
   qed
-  with awalk_not_distinct[OF finite_verts] have "\<exists>p. cycle p"
+  with not_distinct_awalk_verts[OF finite_verts] have "\<exists>p. cycle p"
     using awalk_cyc_decompE' closed_w_imp_cycle by (metis order_refl)
   with nexists_cycle show False by blast
 qed
+
+context directed_tree
+begin
 
 lemma leaf_not_mem_awalk_verts:
   "\<lbrakk> leaf x; awalk u p v; v \<noteq> x \<rbrakk> \<Longrightarrow> x \<notin> set (awalk_verts u p)"
@@ -322,6 +317,9 @@ lemma in_arcs_root[simp]: "in_arcs T root = {}"
   using in_degree_root_zero
   by (auto simp: in_degree_def root_in_verts)
 
+lemma root_root: "local.root root"
+  using root_in_verts unfolding root_def by simp
+
 lemma not_root_if_dominated: "u \<rightarrow>\<^bsub>T\<^esub> v \<Longrightarrow> v \<noteq> root"
   using in_arcs_root unfolding in_arcs_def by auto
 
@@ -368,6 +366,8 @@ lemma ex_in_arc: "\<lbrakk> v \<noteq> root; v \<in> verts T \<rbrakk> \<Longrig
   using in_degree_one_if_not_root unfolding in_degree_def
   by (auto simp: card_Suc_eq)
 
+lemma root_unique: "local.root r \<Longrightarrow> r = root"
+  using ex_in_arc by blast
 
 subsection \<open>Definition of a parent\<close>
 

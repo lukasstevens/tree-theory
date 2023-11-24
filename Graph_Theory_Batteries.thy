@@ -3,6 +3,12 @@ theory Graph_Theory_Batteries
 begin
 
 section \<open>Miscellaneous\<close>
+
+lemma (in wf_digraph) last_in_awalk_verts:
+  "awalk x p y \<Longrightarrow> y \<in> set (awalk_verts x p)"
+  "apath x p y \<Longrightarrow> y \<in> set (awalk_verts x p)"
+  by (auto simp: apath_def)
+
 lemma (in wf_digraph) strongly_connected_connectedD[dest?, simp]:
   assumes "strongly_connected G"
   shows "connected G"
@@ -17,7 +23,7 @@ lemma (in fin_digraph) finite_reachable: "finite {x. u \<rightarrow>\<^sup>* x}"
   using finite_verts
   by (metis finite_subset mem_Collect_eq reachable_in_vertsE subsetI)
 
-lemma (in wf_digraph) awalk_not_distinct:
+lemma (in wf_digraph) not_distinct_awalk_verts:
   assumes "finite (verts G)" and "awalk u p v" and "length p \<ge> card (verts G)"
   shows "\<not> distinct (awalk_verts u p)"
 proof -

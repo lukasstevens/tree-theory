@@ -14,7 +14,13 @@ section \<open>Depth of a tree\<close>
 context directed_tree
 begin
 
-definition depth where "depth w \<equiv> Sup {\<mu> w root v|v. v \<in> verts T}"
+definition height where "height w \<equiv> Sup {\<mu> w root v|v. v \<in> verts T}"
+
+lemma height_eq_Sup_depth:
+  "height w = Sup (depth w ` verts T)"
+  unfolding height_def depth_def
+  using root_unique root_root
+  by (intro SUP_eq_const[OF non_empty, symmetric]) (metis (no_types, lifting))
 
 context
   fixes w :: "'b weight_fun"
@@ -34,49 +40,49 @@ proof -
     using \<open>u \<rightarrow>\<^sup>*\<^bsub>T\<^esub> v\<close> sp_append_if_reachable ereal_le_add_self2 by auto
 qed
 
-lemma depth_lowerB: "v \<in> verts T \<Longrightarrow> depth w \<ge> \<mu> w root v"
+lemma height_lowerB: "v \<in> verts T \<Longrightarrow> height w \<ge> \<mu> w root v"
 proof -
   assume "v \<in> verts T"
   then have "\<mu> w root v \<in> {\<mu> w root v|v. v \<in> verts T}" by auto
-  then show "depth w \<ge> \<mu> w root v"
-    unfolding depth_def by (simp add: Sup_upper)
+  then show "height w \<ge> \<mu> w root v"
+    unfolding height_def by (simp add: Sup_upper)
 qed
 
-lemma depth_upperB: "\<forall>v \<in> verts T. \<mu> w root v \<le> d \<Longrightarrow> depth w \<le> d"
+lemma height_upperB: "\<forall>v \<in> verts T. \<mu> w root v \<le> d \<Longrightarrow> height w \<le> d"
 proof -
   assume "\<forall>v \<in> verts T. \<mu> w root v \<le> d"
   then have "\<forall>x \<in> {\<mu> w root v |v. v \<in> verts T}. x \<le> d"
     by auto
   then show ?thesis
-    unfolding depth_def using Sup_least by fast
+    unfolding height_def using Sup_least by fast
 qed
 
 text \<open>
-This relation between depth of a tree and its diameter is later used to establish the
+This relation between height of a tree and its diameter is later used to establish the
 correctness of the diameter estimate.
 \<close>
-lemma depth_eq_fin_dia: "fin_digraph T \<Longrightarrow> depth w = fin_diameter w"
+lemma height_eq_fin_dia: "fin_digraph T \<Longrightarrow> height w = fin_diameter w"
 proof -
   assume "fin_digraph T"
   have "\<forall>v \<in> verts T. \<mu> w root v < \<infinity>"
     using \<mu>_reach_conv reachable_from_root by blast
   then have "{\<mu> w root v|v. v \<in> verts T} \<subseteq> fin_sp_costs w"
     unfolding fin_sp_costs_def using root_in_verts by blast
-  then have "depth w \<le> fin_diameter w"
-    unfolding depth_def fin_diameter_def by (simp add: Sup_subset_mono)
+  then have "height w \<le> fin_diameter w"
+    unfolding height_def fin_diameter_def by (simp add: Sup_subset_mono)
   moreover
-  have "\<not> depth w < fin_diameter w"
+  have "\<not> height w < fin_diameter w"
   proof
-    assume "depth w < fin_diameter w"
+    assume "height w < fin_diameter w"
     obtain u v where "\<mu> w u v = fin_diameter w" "u \<in> verts T" "v \<in> verts T"
       using fin_digraph.ex_sp_eq_fin_diameter[OF \<open>fin_digraph T\<close> non_empty] by blast
     then have "u \<rightarrow>\<^sup>*\<^bsub>T\<^esub> v"
       by (metis \<mu>_reach_conv fin_digraph.fin_diameter_lt_inf[OF \<open>fin_digraph T\<close>])
     then have "\<mu> w u v \<le> \<mu> w root v" using sp_from_root_le by blast
-    also have "\<dots> \<le> depth w" using depth_lowerB[OF \<open>v \<in> verts T\<close>] by simp
-    finally have "fin_diameter w \<le> depth w"
+    also have "\<dots> \<le> height w" using height_lowerB[OF \<open>v \<in> verts T\<close>] by simp
+    finally have "fin_diameter w \<le> height w"
       using \<open>\<mu> w u v = fin_diameter w\<close> by simp
-    with \<open>depth w < fin_diameter w\<close> show False by simp
+    with \<open>height w < fin_diameter w\<close> show False by simp
   qed
   ultimately show ?thesis by simp
 qed
@@ -149,15 +155,15 @@ proof -
   show ?thesis by blast
 qed
 
-lemma depth_fin_dia_lB:
+lemma height_fin_dia_lB:
   assumes "\<forall>e \<in> arcs G. w e \<ge> 0"
-  shows "T.depth w \<le> G.fin_diameter w"
+  shows "T.height w \<le> G.fin_diameter w"
 proof(rule ccontr)
-  assume "\<not> T.depth w \<le> G.fin_diameter w"
-  then have "T.depth w > G.fin_diameter w"
+  assume "\<not> T.height w \<le> G.fin_diameter w"
+  then have "T.height w > G.fin_diameter w"
     by auto
   then have "\<exists>v \<in> verts T. T.\<mu> w source v > G.fin_diameter w"
-    unfolding T.depth_def less_Sup_iff by blast
+    unfolding T.height_def less_Sup_iff by blast
   then obtain v where v: "v \<in> verts T" "v \<in> verts G" "T.\<mu> w source v > G.fin_diameter w"
     using subgraph_of_G by blast
   moreover
