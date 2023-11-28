@@ -18,7 +18,7 @@ proof -
     using set_awalk_verts_append by auto
 qed
 
-lemma
+lemma lca_same_if_reachable:
   assumes "x \<rightarrow>\<^sup>*\<^bsub>T\<^esub> y"
   shows "lca x x y"
 proof -
@@ -34,7 +34,7 @@ proof -
 qed
 
 
-lemma  
+lemma lca_last_longest_common_prefix_awalk_verts:
   assumes "awalk ca p1 x" "awalk ca p2 y"
   defines "p \<equiv> longest_common_prefix (awalk_verts ca p1) (awalk_verts ca p2)"
   shows "lca (last p) x y"
@@ -77,16 +77,37 @@ proof(induction p1 p2 arbitrary: ca rule: longest_common_prefix.induct)
 next
   case ("2_1" pcay)
   then show ?case
-    apply(cases pcay)
-     apply(auto simp: awalk_Nil_iff)
-    
-    find_theorems "awalk _ [] _"
-    sorry
+    by (cases pcay) (auto intro: lca_same_if_reachable reachable_awalkI simp: awalk_Nil_iff)
 next
-  case ("2_2" uu)
-  then show ?case apply(simp) sorry
+  case ("2_2" pcax)
+  then show ?case
+    using lca_same_if_reachable[THEN lca_symmetric]
+    by (cases pcax) (auto intro: reachable_awalkI simp: awalk_Nil_iff)
 qed
-    
+
+
+lemma longest_common_prefix_awalk_verts_eq:
+  assumes "awalk u p1 v1" "awalk u p2 v2"
+  shows "u # map (head T) (longest_common_prefix p1 p2)
+    = longest_common_prefix (awalk_verts u p1) (awalk_verts u p2)"
+  using assms
+proof(induction p1 p2 arbitrary: u rule: longest_common_prefix.induct)
+  case (1 x xs y ys)
+  then have "head T x \<noteq> head T y" if "x \<noteq> y"
+    using that
+    by (metis awalk_Cons_iff two_in_arcs_contr)
+  with 1 show ?case
+    by (cases xs; cases ys) (auto simp: awalk_Cons_iff)
+next
+  case ("2_1" puv2)
+  then show ?case
+    by (cases puv2) (auto simp: awalk_Nil_iff)
+next
+  case ("2_2" puv1)
+  then show ?case
+    by (cases puv1) (auto simp: awalk_Nil_iff)
+qed
+
 end
 
 end
