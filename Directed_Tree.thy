@@ -53,6 +53,10 @@ lemma apath_if_awalk: "awalk r p v \<Longrightarrow> apath r p v"
   unfolding apath_def
   using awalk_cyc_decompE' closed_w_imp_cycle nexists_cycle by blast
 
+lemma distinct_awalk_verts:
+  "awalk u p v \<Longrightarrow> distinct (awalk_verts u p)"
+  using apath_if_awalk unfolding apath_def by blast
+
 lemma not_reachable1_if_flip_reachable1:
   "x \<rightarrow>\<^sup>+\<^bsub>T\<^esub> y \<Longrightarrow> \<not> y \<rightarrow>\<^sup>+\<^bsub>T\<^esub> x"
 proof

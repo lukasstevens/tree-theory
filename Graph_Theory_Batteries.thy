@@ -4,6 +4,21 @@ begin
 
 section \<open>Miscellaneous\<close>
 
+lemma (in wf_digraph) awalk_not_Nil_butlastD:
+  assumes "awalk x p y"
+  assumes "p \<noteq> []"
+  shows
+    "awalk x (butlast p) (awlast x (butlast p))"
+    "awalk (awlast x (butlast p)) [last p] y"
+proof -
+  from assms have "p = butlast p @ [last p]"
+    by simp
+  with assms awalk_append_iff show
+    "awalk x (butlast p) (awlast x (butlast p))"
+    "awalk (awlast x (butlast p)) [last p] y"
+    by metis+
+qed
+
 lemma (in wf_digraph) last_in_awalk_verts:
   "awalk x p y \<Longrightarrow> y \<in> set (awalk_verts x p)"
   "apath x p y \<Longrightarrow> y \<in> set (awalk_verts x p)"
