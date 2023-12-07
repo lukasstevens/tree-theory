@@ -33,6 +33,25 @@ proof -
     using in_arcs_imp_in_arcs_ends by fastforce
 qed
 
+lemma one_not_reachable_if_reachable1_from_lca:
+  assumes "awalk ca (ax # px) x" "awalk ca (ay # py) y"
+  assumes "ax \<noteq> ay"
+  assumes "ca \<rightarrow>\<^sup>+\<^bsub>T\<^esub> v"
+  shows "\<not> (v \<rightarrow>\<^sup>*\<^bsub>T\<^esub> x \<and> v \<rightarrow>\<^sup>*\<^bsub>T\<^esub> y)"
+proof
+  presume "v \<rightarrow>\<^sup>*\<^bsub>T\<^esub> x" "v \<rightarrow>\<^sup>*\<^bsub>T\<^esub> y"
+  then obtain pvx pvy where
+    pvx: "awalk v pvx x" and pvy: "awalk v pvy y"
+    using reachable_awalk by fastforce
+  from \<open>ca \<rightarrow>\<^sup>+\<^bsub>T\<^esub> v\<close> obtain pcav where pcav: "awalk ca pcav v" "pcav \<noteq> []"
+    using reachable1_awalk by auto
+  with pvx pvy have "awalk ca (pcav @ pvx) x" "awalk ca (pcav @ pvy) y"
+    by simp_all
+  with assms(1,2) have "ax # px = pcav @ pvx" "ay # py = pcav @ pvy"
+    using unique_awalk_All by blast+
+  with \<open>pcav \<noteq> []\<close> \<open>ax \<noteq> ay\<close> show False
+    by (cases pcav) auto
+qed safe
 
 lemma lca_last_longest_common_prefix_awalk_verts:
   assumes "awalk ca p1 x" "awalk ca p2 y"
@@ -52,27 +71,15 @@ proof(induction p1 p2 arbitrary: ca rule: longest_common_prefix.induct)
   next
     case False
     with 1 have "head T a \<noteq> head T b"
-      using awalk_Cons_iff two_in_arcs_contr by force
-    moreover have "\<not> (v \<rightarrow>\<^sup>*\<^bsub>T\<^esub> x \<and> v \<rightarrow>\<^sup>*\<^bsub>T\<^esub> y)" if "ca \<rightarrow>\<^sup>+\<^bsub>T\<^esub> v" for v
-    proof
-      presume "v \<rightarrow>\<^sup>*\<^bsub>T\<^esub> x" "v \<rightarrow>\<^sup>*\<^bsub>T\<^esub> y"
-      then obtain pvx pvy where
-        pvx: "awalk v pvx x" and pvy: "awalk v pvy y"
-        using reachable_awalk by fastforce
-      from that obtain pcav where pcav: "awalk ca pcav v" "pcav \<noteq> []"
-        using reachable1_awalk by auto
-      with pvx pvy have "awalk ca (pcav @ pvx) x" "awalk ca (pcav @ pvy) y"
-        by simp_all
-      with 1 have "a # as = pcav @ pvx" "b # bs = pcav @ pvy"
-        using unique_awalk_All by blast+
-      with \<open>pcav \<noteq> []\<close> False show False
-        by (cases pcav) auto
-    qed safe
+      by (meson awalk_Cons_iff two_in_arcs_contr)
+    moreover note one_not_reachable_if_reachable1_from_lca[OF "1.hyps"(2,3) False]
+    then have "\<not> (v \<rightarrow>\<^sup>*\<^bsub>T\<^esub> x \<and> v \<rightarrow>\<^sup>*\<^bsub>T\<^esub> y)" if "ca \<rightarrow>\<^sup>+\<^bsub>T\<^esub> v" for v
+      using that by blast
     with "1.hyps"(2,3)[THEN reachable_awalkI] have "lca ca x y"
       unfolding lca_def using in_arcs_imp_in_arcs_ends 
       by (fastforce simp: pre_digraph.leaf_def)
     ultimately show ?thesis
-      using \<open>a \<noteq> b\<close> 1 awalk_Cons_iff by (cases as; cases bs) auto
+      using 1 awalk_Cons_iff by (cases as; cases bs) auto
   qed
 next
   case ("2_1" pcay)
@@ -85,6 +92,54 @@ next
     by (cases pcax) (auto intro: reachable_awalkI simp: awalk_Nil_iff)
 qed
 
+lemma disjoint_tl_awalk_verts_if_awalk_lca:
+  assumes "lca ca x y" "x \<noteq> y"
+  assumes "awalk ca px x" "awalk ca py y"
+  shows "set (tl (awalk_verts ca px)) \<inter> set (tl (awalk_verts ca py)) = {}"
+proof(cases "ca = x \<or> ca = y")
+  case True
+  with assms have "px = [] \<or> py = []"
+    using apath_if_awalk apath_nonempty_ends by blast
+  then show ?thesis
+    by auto
+next
+  case False
+  with assms obtain ax px' ay ay' where
+    px: "px = ax # px'" and py: "py = ay # ay'"
+    by (metis awalk_empty_ends neq_Nil_conv)
+  have "ax \<noteq> ay"
+  proof
+    assume "ax = ay"
+    with assms px py have "head T ax \<rightarrow>\<^sup>*\<^bsub>T\<^esub> x" "head T ax \<rightarrow>\<^sup>*\<^bsub>T\<^esub> y"
+      by (auto simp: awalk_Cons_iff in_arcs_imp_in_arcs_ends intro: reachable_awalkI)
+    moreover from assms px have "ax \<in> out_arcs T ca"
+      using awalk_Cons_iff by simp
+    ultimately have "ax \<in> out_arcs (T \<restriction> {ca. ca \<rightarrow>\<^sup>*\<^bsub>T\<^esub> x \<and> ca \<rightarrow>\<^sup>*\<^bsub>T\<^esub> y}) ca"
+      using assms unfolding induce_subgraph_def by auto
+    then have "\<not> lca ca x y"
+      unfolding lca_def Let_def pre_digraph.leaf_def by blast
+    with assms show False
+      by blast
+  qed
+  note one_reachable =
+    one_not_reachable_if_reachable1_from_lca[OF assms(3,4)[unfolded px py] \<open>ax \<noteq> ay\<close>]
+  show ?thesis
+  proof(rule ccontr)
+    assume "set (tl (awalk_verts ca px)) \<inter> set (tl (awalk_verts ca py)) \<noteq> {}"
+    then obtain v where v:
+      "v \<in> set (tl (awalk_verts ca px))" "v \<in> set (tl (awalk_verts ca py))"
+      by blast
+    with awalk_verts_reachable_from assms have "ca \<rightarrow>\<^sup>*\<^bsub>T\<^esub> v"
+      by (cases px) auto
+    moreover from v assms have "ca \<noteq> v"
+      by (cases px; cases py) (auto simp: apath_Cons_iff dest: apath_if_awalk)
+    ultimately have "ca \<rightarrow>\<^sup>+\<^bsub>T\<^esub> v"
+      using reachable_neq_reachable1 by blast
+    with one_reachable v show False
+      using assms awalk_verts_reachable_to
+      by (meson awalk_verts_non_Nil list.set_sel(2))
+  qed
+qed
 
 lemma longest_common_prefix_awalk_verts_eq:
   assumes "awalk u p1 v1" "awalk u p2 v2"
