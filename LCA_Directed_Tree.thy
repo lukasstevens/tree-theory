@@ -141,6 +141,20 @@ next
   qed
 qed
 
+lemma disjoint_awalk_if_awalk_lca:
+  assumes "lca ca x y" "x \<noteq> y"
+  assumes "awalk ca px x" "awalk ca py y"
+  shows "set px \<inter> set py = {}"
+proof -
+  from assms have
+    "tl (awalk_verts ca px) = map (head T) px"
+    "tl (awalk_verts ca py) = map (head T) py"
+    using awalk_verts_conv' by auto
+  note disjoint_tl_awalk_verts_if_awalk_lca[OF assms, unfolded this]
+  then show ?thesis
+    by auto
+qed
+
 lemma longest_common_prefix_awalk_verts_eq:
   assumes "awalk u p1 v1" "awalk u p2 v2"
   shows "u # map (head T) (longest_common_prefix p1 p2)
