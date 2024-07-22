@@ -121,7 +121,7 @@ next
     with assms show False
       by blast
   qed
-  note one_reachable =
+  note one_not_reachable =
     one_not_reachable_if_reachable1_from_lca[OF assms(3,4)[unfolded px py] \<open>ax \<noteq> ay\<close>]
   show ?thesis
   proof(rule ccontr)
@@ -135,7 +135,7 @@ next
       by (cases px; cases py) (auto simp: apath_Cons_iff dest: apath_if_awalk)
     ultimately have "ca \<rightarrow>\<^sup>+\<^bsub>T\<^esub> v"
       using reachable_neq_reachable1 by blast
-    with one_reachable v show False
+    with one_not_reachable v show False
       using assms awalk_verts_reachable_to
       by (meson awalk_verts_non_Nil list.set_sel(2))
   qed
@@ -157,8 +157,8 @@ qed
 
 lemma longest_common_prefix_awalk_verts_eq:
   assumes "awalk u p1 v1" "awalk u p2 v2"
-  shows "u # map (head T) (longest_common_prefix p1 p2)
-    = longest_common_prefix (awalk_verts u p1) (awalk_verts u p2)"
+  shows "u # map (head T) (longest_common_prefix p1 p2) =
+    longest_common_prefix (awalk_verts u p1) (awalk_verts u p2)"
   using assms
 proof(induction p1 p2 arbitrary: u rule: longest_common_prefix.induct)
   case (1 x xs y ys)
