@@ -10,17 +10,11 @@ and the definition of @{const tree} is also incorrect by extension, we develop o
 of a directed tree in the locale @{text directed_tree}.
 \<close>
 
-section \<open>Depth of a tree\<close>
+section \<open>Height of a tree\<close>
 context directed_tree
 begin
 
 definition height where "height w \<equiv> Sup {\<mu> w root v|v. v \<in> verts T}"
-
-lemma height_eq_Sup_depth:
-  "height w = Sup (depth w ` verts T)"
-  unfolding height_def depth_def
-  using root_unique root_root
-  by (intro SUP_eq_const[OF non_empty, symmetric]) (metis (no_types, lifting))
 
 context
   fixes w :: "'b weight_fun"
