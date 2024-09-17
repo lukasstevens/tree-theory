@@ -7,3 +7,5 @@ session Tree_Theory = HOL +
     Graph_Diameter
     Graph_Neighborhood
     Shortest_Path_Tree
+    LCA
+    LCA_Directed_Tree
