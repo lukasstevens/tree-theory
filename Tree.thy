@@ -2,6 +2,11 @@ theory Tree
   imports Directed_Tree
 begin
 
+text \<open>
+  We illustrate that definitions of \<^const>\<open>tree\<close> and \<^const>\<open>forest\<close> are incorrect by
+  introducing the directed acyclic graph below that fulfils both of these predicates.
+\<close>
+
 experiment
 begin
 
@@ -65,90 +70,5 @@ lemma forest_ex_dag: "forest example_dag"
   using nexists_cycle_ex_dag unfolding forest_def .
   
 end
-
-text \<open>Should we disallow multi-edges, i.e. should we add @{locale nomulti_digraph}?\<close>
-
-locale forest = loopfree_digraph F + sym_digraph F for F +
-  assumes nexists_cycle: "\<nexists>c. cycle c \<and> length c \<ge> 3"
-
-locale fin_forest = forest F + fin_digraph F for F
-
-locale tree = forest T for T +
-  assumes strongly_connected: "strongly_connected T"
-
-locale fin_tree = tree T + fin_digraph T for T
-
-lemma (in loopfree_digraph) loopfree_digraph_if_subgraph:
-  assumes "subgraph S G"
-  shows "loopfree_digraph S"
-proof -
-  from assms interpret S: wf_digraph S
-    by blast
-  from assms show ?thesis
-    apply (unfold_locales)
-    using compatible_head compatible_tail no_loops by fastforce
-qed
-
-lemma (in forest) tree_if_in_sccs:
-  assumes "T \<in> sccs"
-    shows "tree T"
-proof -
-  from assms interpret T: wf_digraph T
-    by blast
-  from assms interpret T: loopfree_digraph T
-    by (intro loopfree_digraph_if_subgraph) blast
-  from assms have "strongly_connected T"
-    by auto
-  moreover from assms have "\<nexists>c. T.cycle c \<and> length c \<ge> 3"
-    using nexists_cycle subgraph_cycle by fastforce
-  moreover from assms have "symmetric T"
-    using induced_graph_imp_symmetric in_sccs_imp_induced by auto   
-  ultimately show ?thesis
-    by unfold_locales blast+
-qed
-
-context forest
-begin
-
-definition "dtree_at r \<equiv>
-  \<lparr> verts = {v. r \<rightarrow>\<^sup>*\<^bsub>F\<^esub> v}
-  , arcs = {e |e p v. apath r p v \<and> e \<in> set p}
-  , tail = tail F, head = head F
-  \<rparr>"
-
-lemma directed_tree_dtree_at:
-  assumes "r \<in> verts F"
-  shows "directed_tree (dtree_at r) r"
-proof -
-  interpret dtree_at: wf_digraph "dtree_at r"
-    unfolding dtree_at_def
-    by (unfold_locales)
-       (auto dest: awalkI_apath simp: awalk_verts_arc1 awalk_verts_arc2 awalk_verts_reachable_from)
-  from assms have "r \<in> verts (dtree_at r)"
-    unfolding dtree_at_def by auto
-  moreover have "\<exists>!p. dtree_at.awalk r p v" if "v \<in> verts (dtree_at r)" for v
-    sorry
-  ultimately show "directed_tree (dtree_at r) r"
-    by unfold_locales assumption+
-  oops
-
-end
-
-lemma (in tree) verts_dtree_at[simp]:
-  assumes "r \<in> verts T"
-    shows "verts (dtree_at r) = verts T"
-  oops
-
-lemma (in fin_tree) add_leaf_induct[case_names single_vert add_leaf]:
-  assumes base: "\<And>t h root. P \<lparr> verts = {root}, arcs = {}, tail = t, head = h \<rparr>"
-      and add_leaf: "\<And>T' V A t h u root a1 a2 v.
-        \<lbrakk> T' = \<lparr> verts = V, arcs = A, tail = t, head = h \<rparr>
-        ; fin_tree T'
-        ; P T'
-        ; u \<in> V; v \<notin> V; a1 \<notin> A; a2 \<notin> A
-        \<rbrakk> \<Longrightarrow> P \<lparr> verts = V \<union> {v}, arcs = A \<union> {a1, a2}
-                , tail = t(a1 := u, a2 := v), head = h(a1 := v, a2 := u) \<rparr>"
-    shows "P T"
-  oops
 
 end
