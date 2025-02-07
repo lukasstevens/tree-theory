@@ -84,6 +84,70 @@ next
         tail_del_vert wf_digraph.awalk_Cons_iff wf_digraph_del_vert)
 qed
 
+
+context wf_digraph
+begin
+
+lemma awalk_imp_subgraph_awalk:
+  assumes "subgraph H G"
+  assumes "awalk x p y"
+  assumes "y \<in> verts H" "set p \<subseteq> arcs H"
+  shows "pre_digraph.awalk H x p y"
+proof -
+  from assms interpret H: wf_digraph H
+    by blast
+  from assms(2-4) show ?thesis
+  proof(induction p arbitrary: x)
+    case Nil
+    then show ?case
+      unfolding awalk_Nil_iff H.awalk_Nil_iff by blast
+  next
+    case (Cons a p)
+    from assms(1) have "compatible G H"
+      by blast
+    with Cons show ?case
+      using H.arc_implies_awalk
+      unfolding awalk_Cons_iff H.awalk_Cons_iff 
+      by (auto simp: compatible_tail compatible_head)
+  qed
+qed
+
+lemma subgraph_add_arc:
+  "subgraph G (add_arc a)"
+  using wf_digraph_axioms wf_digraph_add_arc
+  by (intro subgraphI) (auto simp: compatible_def verts_add_arc_conv)
+
+lemma awalk_add_arc_if_awalk:
+  assumes "awalk x p y"
+  shows "pre_digraph.awalk (add_arc a) x p y"
+  using assms subgraph_add_arc wf_digraph.subgraph_awalk_imp_awalk[OF wf_digraph_add_arc]
+  by simp
+
+lemma awalk_if_awalk_add_arc:
+  assumes "pre_digraph.awalk (add_arc a) x p y"
+  assumes "verts (add_arc a) = verts G"
+  assumes "a \<notin> set p"
+  shows "awalk x p y"
+  using assms
+proof(induction p arbitrary: x)
+  case Nil
+  then show ?case
+    unfolding awalk_Nil_iff wf_digraph.awalk_Nil_iff[OF wf_digraph_add_arc]
+    by blast
+next
+  case (Cons a' p)
+  then show ?case
+    unfolding awalk_Cons_iff wf_digraph.awalk_Cons_iff[OF wf_digraph_add_arc]
+    by auto
+qed
+
+lemma awalk_if_awalk_del_arc:
+  assumes "pre_digraph.awalk (del_arc a) x p y"
+  shows "awalk x p y"
+  using assms subgraph_awalk_imp_awalk subgraph_del_arc by blast
+
+end
+
 text \<open>This is an alternative formulation of @{thm pre_digraph.arcs_del_vert}.\<close>
 lemma (in pre_digraph) arcs_del_vert2:
   "arcs (del_vert v) = arcs G - in_arcs G v - out_arcs G v"
@@ -175,5 +239,67 @@ proof(rule ccontr)
       by metis
   qed
 qed
+
+section \<open>Root and Leaf\<close>
+
+context pre_digraph
+begin
+
+definition root :: "'a \<Rightarrow> bool" where
+  "root v \<equiv> v \<in> verts G \<and> in_arcs G v = {}"
+
+lemma root_in_vertsD[simp]: "root v \<Longrightarrow> v \<in> verts G"
+  unfolding root_def by simp
+
+lemma root_in_arcsD[simp]: "root v \<Longrightarrow> in_arcs G v = {}"
+  unfolding root_def by simp
+
+lemma root_in_degree_0[simp]: "root v \<Longrightarrow> in_degree G v = 0"
+  unfolding root_def in_degree_def by auto
+
+lemma rootE[elim]:
+  assumes "root v"
+  obtains "v \<in> verts G" "in_arcs G v = {}"
+  using assms unfolding root_def by auto
+
+lemma not_root_if_dominated: "u \<rightarrow>\<^bsub>G\<^esub> v \<Longrightarrow> \<not> root v"
+  unfolding root_def in_arcs_def by auto
+
+lemma dominated_if_not_root:
+  "v \<in> verts G \<Longrightarrow> \<not> root v \<Longrightarrow> \<exists>u. u \<rightarrow>\<^bsub>G\<^esub> v"
+  unfolding root_def in_arcs_def using arcs_ends_conv by blast
+
+lemma not_root_if_reachable1: "u \<rightarrow>\<^sup>+\<^bsub>G\<^esub> v \<Longrightarrow> \<not> root v"
+  by (meson not_root_if_dominated tranclD2)
+
+lemma subgraph_root_iff_if_root:
+  assumes "subgraph H G"
+  assumes "root v"
+  shows "pre_digraph.root H v \<longleftrightarrow> v \<in> verts H"
+  using assms unfolding pre_digraph.root_def subgraph_def
+  using compatible_head by fastforce
+
+definition leaf :: "'a \<Rightarrow> bool" where
+  "leaf v \<equiv> v \<in> verts G \<and> out_arcs G v = {}"
+
+lemma leaf_in_vertsD[simp]: "leaf v \<Longrightarrow> v \<in> verts G"
+  unfolding leaf_def by simp
+
+lemma leaf_out_arcsD[simp]: "leaf v \<Longrightarrow> out_arcs G v = {}"
+  unfolding leaf_def by simp
+
+lemma leaf_out_degree_zero[simp]: "leaf v \<Longrightarrow> out_degree G v = 0"
+  unfolding leaf_def out_degree_def by auto
+
+lemma not_leaf_if_dominates:
+  "v \<rightarrow> v' \<Longrightarrow> \<not> leaf v"
+  unfolding leaf_def by force
+
+lemma leafE[elim]:
+  assumes "leaf v"
+  obtains "v \<in> verts G" "out_arcs G v = {}"
+  using assms unfolding leaf_def by auto
+
+end
 
 end

@@ -1,7 +1,5 @@
 theory Directed_Tree
-  imports
-    "Graph_Theory.Graph_Theory"
-    "Graph_Theory_Batteries" "LCA"
+  imports Directed_Forest "LCA"
 begin
 
 section \<open>Directed tree\<close>
@@ -21,9 +19,17 @@ locale directed_tree = wf_digraph T for T +
   fixes root :: 'a
   assumes
     root_in_verts: "root \<in> verts T" and
-    unique_awalk: "v \<in> verts T \<Longrightarrow> \<exists>!p. awalk root p v"
+    Ex1_awalk_root: "v \<in> verts T \<Longrightarrow> \<exists>!p. awalk root p v"
 
 locale fin_directed_tree = directed_tree T root + fin_digraph T for T root
+
+lemma (in wf_digraph) directed_treeI':
+  assumes "r \<in> verts G"
+  assumes "\<And>v. v \<in> verts G \<Longrightarrow> r \<rightarrow>\<^sup>*\<^bsub>G\<^esub> v"
+  assumes "\<And>v v'. \<exists>\<^sub>\<le>\<^sub>1p. awalk v p v'"
+  shows "directed_tree G r"
+  using assms reachable_awalk
+  by unfold_locales (auto dest: Uniq_D)
 
 subsection \<open>General properties of trees\<close>
 
@@ -31,78 +37,52 @@ context directed_tree
 begin
 
 lemma reachable_from_root: "v \<in> verts T \<Longrightarrow> root \<rightarrow>\<^sup>*\<^bsub>T\<^esub> v"
-  using unique_awalk reachable_awalkI by blast
+  using Ex1_awalk_root reachable_awalkI by blast
 
 lemma non_empty: "verts T \<noteq> {}"
   using root_in_verts by blast
 
-theorem nexists_cycle: "\<nexists>c. cycle c"
-proof
-  assume "\<exists>c. cycle c"
-  then obtain c where c: "cycle c" by blast
-  from unique_awalk[of "awhd root c", OF awhd_in_verts[OF root_in_verts, of c]]
-  obtain p where p: "awalk root p (awhd root c)"
-    using c[unfolded cycle_conv] unfolding awalk_conv by auto
-  from c p awalk_appendI have "awalk root (p@c) (awhd root c)"
-    by (metis awalkE' cycle_def awalk_verts_ne_eq)
-  with unique_awalk p c show "False"
-    using awalk_last_in_verts unfolding cycle_def by blast
+lemma root_root[simp, intro]: "local.root root"
+proof(rule ccontr)
+  assume "\<not> local.root root"
+  with root_in_verts obtain u where "u \<rightarrow>\<^bsub>T\<^esub> root"
+    using dominated_if_not_root by blast
+  with reachable_from_root[of u] obtain p where "awalk root p root" "p \<noteq> []"
+    using adj_in_verts
+    by (meson reachable1_awalk reachable_reachable1_trans trancl.r_into_trancl)
+  with root_in_verts Ex1_awalk_root show False
+    by (metis awalk_Nil_iff)
 qed
 
-lemma apath_if_awalk: "awalk r p v \<Longrightarrow> apath r p v"
-  unfolding apath_def
-  using awalk_cyc_decompE' closed_w_imp_cycle nexists_cycle by blast
+lemma eq_root_if_root:
+  assumes "local.root v"
+  shows "v = root"
+  using assms root_in_vertsD not_root_if_reachable1 reachable_from_root
+  by (metis reachable_neq_reachable1)
 
-lemma distinct_awalk_verts:
-  "awalk u p v \<Longrightarrow> distinct (awalk_verts u p)"
-  using apath_if_awalk unfolding apath_def by blast
-
-lemma not_reachable1_if_flip_reachable1:
-  "x \<rightarrow>\<^sup>+\<^bsub>T\<^esub> y \<Longrightarrow> \<not> y \<rightarrow>\<^sup>+\<^bsub>T\<^esub> x"
-proof
-  assume "x \<rightarrow>\<^sup>+\<^bsub>T\<^esub> y" "y \<rightarrow>\<^sup>+\<^bsub>T\<^esub> x"
-  then obtain p where "p \<noteq> []" "awalk x p x"
-    by (meson reachable1_awalk trancl_trans)
-  with nexists_cycle show False
-    unfolding cycle_def
-    by (meson apath_ends apath_if_awalk)
+sublocale directed_forest T
+proof unfold_locales
+  show "\<And>v. v \<in> verts T \<Longrightarrow> \<exists>!r. local.root r \<and> r \<rightarrow>\<^sup>*\<^bsub>T\<^esub> v"
+    using eq_root_if_root reachable_from_root by blast
+  
+  show "\<exists>\<^sub>\<le>\<^sub>1 p. awalk v p v'" for v v'
+  proof(intro Uniq_I)
+    fix p1 p2 assume "awalk v p1 v'" "awalk v p2 v'"
+    then obtain pv where
+      "awalk root (pv @ p1) v'" "awalk root (pv @ p2) v'"
+      using Ex1_awalk_root
+      by (meson awalk_appendI awalk_hd_in_verts)
+    with Ex1_awalk_root show "p1 = p2"
+      by blast
+  qed
 qed
-
-lemma not_in_awalk_verts_if_dominated:
-  "\<lbrakk> u \<rightarrow>\<^bsub>T\<^esub> v; awalk r p u \<rbrakk> \<Longrightarrow> v \<notin> set (awalk_verts r p)"
-  using awalk_verts_reachable_to not_reachable1_if_flip_reachable1
-  by blast
-
-sublocale loopfree: loopfree_digraph T
-proof(standard, rule ccontr)
-  fix e assume arc: "e \<in> arcs T" and loop: "\<not> tail T e \<noteq> head T e"
-  then have "cycle [e]"
-    unfolding cycle_conv
-    using arc_implies_awalk by force
-  with nexists_cycle show "False" by blast
-qed
-
-sublocale nomulti: nomulti_digraph T
-proof(standard, rule ccontr, goal_cases)
-  case (1 e1 e2)
-  let ?u = "tail T e1" and ?v = "head T e1"
-  from unique_awalk obtain p where "awalk root p ?u"
-    using 1 tail_in_verts by blast
-  with 1 have "awalk root (p@[e1]) ?v" and "awalk root (p@[e2]) ?v"
-    unfolding arc_to_ends_def
-    using arc_implies_awalk by (fastforce)+
-
-  with unique_awalk show "False"
-    using \<open>e1 \<noteq> e2\<close> by blast
-qed
-
 
 lemma connected': "\<lbrakk> u \<in> verts T; v \<in> verts T \<rbrakk> \<Longrightarrow> u \<rightarrow>\<^sup>*\<^bsub>mk_symmetric T\<^esub> v"
 proof -
   let ?T' = "mk_symmetric T"
   fix u v assume "u \<in> verts T" and "v \<in> verts T"
   then have "\<exists>up. awalk root up u" and "\<exists>vp. awalk root vp v"
-    using unique_awalk by blast+
+    using Ex1_awalk_root by blast+
   then obtain up vp where up: "awalk root up u" and vp: "awalk root vp v" by blast
   then have "u \<rightarrow>\<^sup>*\<^bsub>mk_symmetric T\<^esub> root" and "root \<rightarrow>\<^sup>*\<^bsub>mk_symmetric T\<^esub> v"
     by (meson reachable_awalkI reachable_mk_symmetricI
@@ -113,26 +93,12 @@ qed
 
 theorem connected: "connected T"
   unfolding connected_def strongly_connected_def
-  using connected' root_in_verts by auto
-
-lemma unique_awalk_All: "\<exists>p. awalk u p v \<Longrightarrow> \<exists>!p. awalk u p v"
-proof(rule ccontr)
-  assume "\<exists>p. awalk u p v" "\<nexists>!p. awalk u p v"
-  then have "\<exists>p q. awalk u p v \<and> awalk u q v \<and> p \<noteq> q"
-    by blast
-  then obtain p q where
-    p: "awalk u p v" and q: "awalk u q v" and "p \<noteq> q" by blast
-  from unique_awalk obtain w where w: "awalk root w u"
-    using \<open>awalk u p v\<close> by blast
-  then have "awalk root (w@p) v" and "awalk root (w@q) v" and "(w@p) \<noteq> (w@q)"
-    using \<open>awalk u p v\<close> \<open>awalk u q v\<close> \<open>p \<noteq> q\<close> awalk_appendI by auto
-  with unique_awalk show False by blast
-qed
+  using connected' non_empty by auto
 
 lemma unique_arc:
   shows "u \<rightarrow>\<^bsub>T\<^esub> v \<Longrightarrow> \<exists>!e \<in> arcs T. tail T e = u \<and> head T e = v"
     and "(\<nexists>e. e \<in> arcs T \<and> tail T e = u \<and> head T e = v) \<Longrightarrow> \<not> u \<rightarrow>\<^bsub>T\<^esub> v"
-  using unique_awalk_All nomulti.no_multi_arcs unfolding arc_to_ends_def
+  using unique_awalk nomulti.no_multi_arcs unfolding arc_to_ends_def
   by auto
 
 lemma unique_arc_set:
@@ -153,7 +119,7 @@ qed
 lemma sp_eq_awalk_cost: "awalk a p b \<Longrightarrow> awalk_cost w p = \<mu> w a b"
 proof -
   assume "awalk a p b"
-  with unique_awalk_All have "{p. awalk a p b} = {p}"
+  with unique_awalk have "{p. awalk a p b} = {p}"
     by blast
   then show ?thesis unfolding \<mu>_def
     by (metis cInf_singleton image_empty image_insert)
@@ -196,7 +162,7 @@ proof
   with p have "[e] \<noteq> p" and "awalk ?u p ?v"
     by (auto simp: subgraph_awalk_imp_awalk subgraph_del_arc)
 
-  ultimately show False using unique_awalk_All by blast
+  ultimately show False using unique_awalk by blast
 qed
 
 lemma All_arcs_in_path: "e \<in> arcs T \<Longrightarrow> \<exists>p u v. awalk u p v \<and> e \<in> set p"
@@ -230,7 +196,7 @@ proof(rule ccontr, unfold bex_simps)
   qed
   with not_distinct_awalk_verts[OF finite_verts] have "\<exists>p. cycle p"
     using awalk_cyc_decompE' closed_w_imp_cycle by (metis order_refl)
-  with nexists_cycle show False by blast
+  with NEx_cycle show False by blast
 qed
 
 context directed_tree
@@ -263,7 +229,7 @@ proof(unfold_locales)
     from \<open>u \<in> verts (del_vert v)\<close> have "u \<in> verts T" "u \<noteq> v"
       by (simp_all add: verts_del_vert)
     then obtain p where p: "awalk root p u" "\<forall>p'. awalk root p' u \<longrightarrow> p = p'"
-    using unique_awalk[OF \<open>u \<in> verts T\<close>] by auto
+    using Ex1_awalk_root[OF \<open>u \<in> verts T\<close>] by auto
     then have "v \<notin> set (awalk_verts root p)"
     using leaf_not_mem_awalk_verts[OF \<open>leaf v\<close> _ \<open>u \<noteq> v\<close>] by blast
     with p have
@@ -285,27 +251,27 @@ proof(rule ccontr)
   assume "in_degree T root \<noteq> 0"
   then obtain e u where e: "tail T e = u" "head T e = root" "u \<in> verts T" "e \<in> arcs T"
     by (metis tail_in_verts all_not_in_conv card.empty in_degree_def in_in_arcs_conv)
-  with unique_awalk obtain p where p: "awalk root p u"
+  with Ex1_awalk_root obtain p where p: "awalk root p u"
     by blast
   with e have "awalk root (p@[e]) root"
     using awalk_appendI arc_implies_awalk by auto
   moreover have "awalk root [] root"
     by (simp add: awalk_Nil_iff root_in_verts)
   ultimately show "False"
-    using unique_awalk by blast
+    using Ex1_awalk_root by blast
 qed
 
 lemma two_in_arcs_contr:
   assumes "e1 \<in> arcs T" "e2 \<in> arcs T" and "e1 \<noteq> e2" and "head T e1 = head T e2"
   shows "False"
 proof -
-  from unique_awalk assms obtain p1 p2
+  from Ex1_awalk_root assms obtain p1 p2
     where "awalk root p1 (tail T e1)" and "awalk root p2 (tail T e2)"
     by (meson tail_in_verts in_in_arcs_conv)
   with assms have "awalk root (p1@[e1]) (head T e1)" and "awalk root (p2@[e2]) (head T e1)"
     unfolding in_arcs_def
     using arc_implies_awalk by force+
-  with unique_awalk \<open>e1 \<noteq> e2\<close> show "False" by blast
+  with Ex1_awalk_root \<open>e1 \<noteq> e2\<close> show "False" by blast
 qed
 
 lemma finite_in_arcs[simp]: "v \<in> verts T \<Longrightarrow> finite (in_arcs T v)"
@@ -317,22 +283,12 @@ proof(rule ccontr)
   with two_in_arcs_contr show "False" unfolding in_arcs_def by auto
 qed
 
-lemma in_arcs_root[simp]: "in_arcs T root = {}"
-  using in_degree_root_zero
-  by (auto simp: in_degree_def root_in_verts)
-
-lemma root_root: "local.root root"
-  using root_in_verts unfolding root_def by simp
-
-lemma not_root_if_dominated: "u \<rightarrow>\<^bsub>T\<^esub> v \<Longrightarrow> v \<noteq> root"
-  using in_arcs_root unfolding in_arcs_def by auto
-
-lemma in_degree_one_if_not_root: "\<lbrakk> v \<in> verts T; v \<noteq> root \<rbrakk>  \<Longrightarrow> in_degree T v = 1"
+lemma in_degree_one_if_not_root: "\<lbrakk> v \<in> verts T; v \<noteq> root \<rbrakk> \<Longrightarrow> in_degree T v = 1"
 proof(rule ccontr)
   assume "v \<noteq> root" and "v \<in> verts T" and "in_degree T v \<noteq> 1"
   then have "in_degree T v \<noteq> 0"
   proof -
-    from unique_awalk \<open>v \<in> verts T\<close> obtain p where "awalk root p v" by blast
+    from Ex1_awalk_root \<open>v \<in> verts T\<close> obtain p where "awalk root p v" by blast
     with \<open>v \<noteq> root\<close> have "root \<rightarrow>\<^sup>+\<^bsub>T\<^esub> v" using reachable_awalkI by blast
     then have "\<exists>u. u \<rightarrow>\<^bsub>T\<^esub> v" by (meson tranclD2)
     then show ?thesis
@@ -487,7 +443,7 @@ proof
     assume "leaf root" and "verts T \<noteq> {root}"
     with non_empty obtain u where u: "u \<in> verts T" "u \<noteq>root"
       by blast
-    with unique_awalk obtain p where p: "awalk root p u" by blast
+    with Ex1_awalk_root obtain p where p: "awalk root p u" by blast
     with \<open>u \<noteq> root\<close> obtain e where e: "e = hd p" "tail T e = root"
       by (metis awalkE' awalk_ends pre_digraph.cas_simp)
     with u p have "e \<in> out_arcs T root" unfolding out_arcs_def
@@ -502,7 +458,7 @@ lemma arcs_del_leaf:
   shows "arcs (del_vert v) = arcs T - {e}"
 proof -
   from assms have "v \<noteq> root"
-    using in_arcs_root by fastforce
+    using root_leaf_iff by force
   from arcs_del_leafE[OF \<open>leaf v\<close> this] assms show ?thesis
     by (metis two_in_arcs_contr)
 qed
