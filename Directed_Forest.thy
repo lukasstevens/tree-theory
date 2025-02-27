@@ -87,6 +87,11 @@ proof -
     by (meson append1_eq_conv unique_awalk)
 qed
 
+lemma unique_in_arc:
+  assumes "e1 \<in> arcs F" "e2 \<in> arcs F" "head F e1 = head F e2"
+  shows "e1 = e2"
+  using assms two_in_arcs_contr by blast
+
 lemma finite_in_arcs[simp]:
   "finite (in_arcs F v)"
 proof(rule ccontr)

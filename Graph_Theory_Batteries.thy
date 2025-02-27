@@ -248,6 +248,11 @@ begin
 definition root :: "'a \<Rightarrow> bool" where
   "root v \<equiv> v \<in> verts G \<and> in_arcs G v = {}"
 
+lemma rootI:
+  assumes "v \<in> verts G" "in_arcs G v = {}"
+  shows "root v"
+  using assms unfolding root_def by blast
+
 lemma root_in_vertsD[simp]: "root v \<Longrightarrow> v \<in> verts G"
   unfolding root_def by simp
 
